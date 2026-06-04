@@ -1,0 +1,96 @@
+x-lls-service: &lls-service
+  image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.1
+  restart: always
+  depends_on:
+    lls-redis:
+      condition: service_healthy
+    zentitle-lls-db:
+      condition: service_healthy
+  environment:
+    ASPNETCORE_URLS: "http://0.0.0.0:6501"
+    ConnectionStrings__Database: "Server=zentitle-lls-db; Database=lls; User Id=lls-admin; Password=password; Maximum Pool Size=128; Minimum Pool Size=32; Timeout=5; Command Timeout=15; Keepalive=30;"
+    Authentication__Username: "admin"
+    Authentication__Password: "admin"
+    HighAvailability__RedisConnectionString: "lls-redis:6379"
+
+    LoggingLevel__MinimumLevel: "Warning"
+    
+    # Keep a per-instance app limit so the sample exercises both proxy and LLS throttling.
+    RateLimiting__Enabled: "true"
+    RateLimiting__Limit: "5"
+    RateLimiting__QueueLimit: "0"
+
+services:
+  lls-redis:
+    image: redis:7.4-alpine
+    restart: always
+    container_name: lls-redis
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  zentitle-lls-db:
+    image: postgres:18.4
+    restart: always
+    container_name: zentitle-lls-db
+    environment:
+      POSTGRES_DB: "lls"
+      POSTGRES_USER: "lls-admin"
+      POSTGRES_PASSWORD: "password"
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "lls", "-U", "lls-admin" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - effective_cache_size=8GB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - wal_buffers=32MB
+      - -c
+      - max_wal_size=8GB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - synchronous_commit=off
+      - -c
+      - wal_compression=on
+    ports:
+      - "5433:5432"
+
+  zentitle-lls-1:
+    <<: *lls-service
+    container_name: zentitle-lls-1
+
+  zentitle-lls-2:
+    <<: *lls-service
+    container_name: zentitle-lls-2
+
+  zentitle-lls-3:
+    <<: *lls-service
+    container_name: zentitle-lls-3
+
+  haproxy:
+    image: haproxy:3.3-alpine
+    restart: always
+    depends_on:
+      - zentitle-lls-1
+      # - zentitle-lls-2
+      # - zentitle-lls-3
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    ports:
+      - "6501:6501"
