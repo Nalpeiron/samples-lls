@@ -1,5 +1,5 @@
 x-lls-service: &lls-service
-  image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.1
+  image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.2
   restart: always
   depends_on:
     lls-redis:

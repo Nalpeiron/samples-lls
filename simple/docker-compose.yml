@@ -17,7 +17,7 @@ services:
       - "5433:5432"
 
   zentitle-lls:
-    image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.1
+    image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.2
     restart: always
     container_name: zentitle-lls
     environment:

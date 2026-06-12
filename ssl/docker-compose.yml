@@ -1,0 +1,78 @@
+services:
+  zentitle-lls-cert:
+    image: alpine/openssl:3.5.2
+    container_name: zentitle-lls-cert
+    volumes:
+      - zentitle-lls-cert:/https
+    entrypoint:
+      - sh
+      - -c
+    command:
+      - |
+        if [ ! -f /https/zentitle-lls.pfx ]; then
+          openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
+            -keyout /https/zentitle-lls.key \
+            -out /https/zentitle-lls.crt \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+          openssl pkcs12 -export \
+            -out /https/zentitle-lls.pfx \
+            -inkey /https/zentitle-lls.key \
+            -in /https/zentitle-lls.crt \
+            -passout pass:password
+
+          chmod 644 /https/zentitle-lls.pfx
+        fi
+
+  zentitle-lls-db:
+    image: postgres:18.4
+    restart: always
+    container_name: zentitle-lls-db
+    environment:
+      POSTGRES_DB: "lls"
+      POSTGRES_USER: "lls-admin"
+      POSTGRES_PASSWORD: "password"
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "lls", "-U", "lls-admin" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: postgres -c 'max_connections=250'
+    ports:
+      - "5433:5432"
+
+  zentitle-lls:
+    image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.2
+    restart: always
+    container_name: zentitle-lls
+    user: root
+    entrypoint:
+      - sh
+      - -c
+    command:
+      - |
+        cat /https/zentitle-lls.crt >> /etc/ssl/certs/ca-certificates.crt
+        unset CORECLR_PROFILER CORECLR_PROFILER_PATH CORECLR_PROFILER_PATH_32 CORECLR_PROFILER_PATH_64
+        export DOTNET_EnableDiagnostics=0 COMPlus_EnableDiagnostics=0 DOTNET_EnableDiagnostics_IPC=0 DOTNET_EnableDiagnostics_Debugger=0 DOTNET_EnableDiagnostics_Profiler=0 CORECLR_ENABLE_PROFILING=0
+        exec su appuser -s /bin/sh -c 'dotnet LLS.Host.dll'
+    environment:
+      ASPNETCORE_URLS: "https://0.0.0.0:6501"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/zentitle-lls.pfx"
+      ASPNETCORE_Kestrel__Certificates__Default__Password: "password"
+      ConnectionStrings__Database: "Server=zentitle-lls-db; Database=lls; User Id=lls-admin; Password=password; Maximum Pool Size=128; Minimum Pool Size=32; Timeout=5; Command Timeout=15; Keepalive=30"
+      Authentication__Username: "admin"
+      Authentication__Password: "admin"
+      LoggingLevel__MinimumLevel: "Warning"
+    volumes:
+      - zentitle-lls-cert:/https:ro
+    ports:
+      - "6501:6501"
+    depends_on:
+      zentitle-lls-cert:
+        condition: service_completed_successfully
+      zentitle-lls-db:
+        condition: service_healthy
+
+volumes:
+  zentitle-lls-cert:

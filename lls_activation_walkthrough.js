@@ -74,6 +74,12 @@ async function main() {
 
   const llsUrl = trimTrailingSlash(await promptStoredRequired("LLS URL", ENV_KEYS.llsUrl));
   envUpdates[ENV_KEYS.llsUrl] = llsUrl;
+  const llsRequestOptions = {
+    allowSelfSignedCertificate: isHttpsUrl(llsUrl),
+  };
+  if (llsRequestOptions.allowSelfSignedCertificate) {
+    console.log("Self-signed TLS certificates will be accepted for LLS requests.");
+  }
 
   const llsUsername = await promptStoredRequired("LLS username", ENV_KEYS.llsUsername);
   envUpdates[ENV_KEYS.llsUsername] = llsUsername;
@@ -103,13 +109,21 @@ async function main() {
 
   console.log();
   console.log("Connecting to LLS...");
-  const llsServer = await getJson(`${llsUrl}/api/v1/lls/server`, llsAuthHeaders);
+  const llsServer = await getJson(
+    `${llsUrl}/api/v1/lls/server`,
+    llsAuthHeaders,
+    llsRequestOptions
+  );
   const llsServerId = llsServer.id || "<unknown id>";
   console.log(`Connected to LLS server: ${llsServerId}`);
 
   console.log();
   console.log("Checking LLS license status...");
-  const llsLicenseStatus = await getJson(`${llsUrl}/api/v1/lls/license/status`, llsAuthHeaders);
+  const llsLicenseStatus = await getJson(
+    `${llsUrl}/api/v1/lls/license/status`,
+    llsAuthHeaders,
+    llsRequestOptions
+  );
   const status = llsLicenseStatus.status || "<unknown>";
 
   if (status === "active") {
@@ -128,7 +142,8 @@ async function main() {
     const activationTokenResponse = await postJson(
       `${llsUrl}/api/v1/lls/license/generate-activation-token`,
       { activationCode, serverName },
-      llsAuthHeaders
+      llsAuthHeaders,
+      llsRequestOptions
     );
     const activationToken = requireToken(activationTokenResponse, "LLS activation token response");
 
@@ -157,7 +172,8 @@ async function main() {
     const llsActivationResponse = await postJson(
       `${llsUrl}/api/v1/lls/license/activate`,
       { token: activationResponseToken },
-      llsAuthHeaders
+      llsAuthHeaders,
+      llsRequestOptions
     );
     const activatedStatus = llsActivationResponse.status || "<unknown>";
     const activatedSeatName = llsActivationResponse.seatName || "<unknown>";
@@ -191,7 +207,8 @@ async function main() {
   const importedEntitlement = await postJson(
     `${llsUrl}/api/v1/lls/entitlements/import`,
     { token: entitlementImportToken },
-    llsAuthHeaders
+    llsAuthHeaders,
+    llsRequestOptions
   );
 
   printEntitlementSummary(importedEntitlement);
@@ -245,17 +262,18 @@ async function getManagementToken(config) {
   return `Bearer ${response.access_token}`;
 }
 
-function getJson(url, headers) {
-  return requestJson("GET", url, { headers });
+function getJson(url, headers, requestOptions = {}) {
+  return requestJson("GET", url, { headers, ...requestOptions });
 }
 
-function postJson(url, body, headers) {
+function postJson(url, body, headers, requestOptions = {}) {
   return requestJson("POST", url, {
     headers: {
       ...headers,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    ...requestOptions,
   });
 }
 
@@ -269,6 +287,7 @@ function requestJson(method, url, options = {}) {
       parsedUrl,
       {
         method,
+        rejectUnauthorized: options.allowSelfSignedCertificate ? false : undefined,
         headers: {
           Accept: "application/json",
           ...(options.headers || {}),
@@ -457,6 +476,10 @@ function normalizeTokenUrl(value) {
 
 function trimTrailingSlash(value) {
   return value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
+function isHttpsUrl(value) {
+  return new URL(value).protocol === "https:";
 }
 
 function maskToken(token) {

@@ -5,6 +5,9 @@ This repository contains sample Local License Server (LLS) deployments and a Nod
 ## Contents
 
 - `simple/` - the most basic LLS setup with a PostgreSQL database.
+- `ssl/` - the simple setup with HTTPS enabled directly in ASP.NET Core.
+- `haproxy-ssl/` - the simple setup behind HAProxy with HTTPS termination.
+- `nginx-ssl/` - the simple setup behind nginx with HTTPS termination.
 - `high-availability/` - a high-availability LLS setup using HAProxy, Redis, and multiple LLS instances.
 - `lls_activation_walkthrough.js` - an interactive script that activates LLS and imports an entitlement.
 
@@ -39,6 +42,91 @@ Password: admin
 ```
 
 PostgreSQL is exposed on host port `5433`.
+
+To stop the sample:
+
+```bash
+docker compose down
+```
+
+## SSL setup
+
+The SSL sample starts one LLS container and one PostgreSQL database. A Compose init service generates a self-signed localhost certificate into a Docker volume, and LLS uses ASP.NET Core environment variables to serve HTTPS directly. The generated certificate is also added to the LLS container trust store so the server-side UI can call its own HTTPS API.
+
+```bash
+cd ssl
+docker compose up -d
+```
+
+LLS is exposed at:
+
+```text
+https://localhost:6501
+```
+
+The certificate is self-signed, so browsers and API clients will require an exception or a trusted replacement certificate.
+
+To stop the sample:
+
+```bash
+docker compose down
+```
+
+## HAProxy SSL setup
+
+The HAProxy SSL sample starts one LLS container, one PostgreSQL database, and HAProxy. A Compose init service generates a self-signed localhost certificate into a Docker volume. HAProxy terminates browser-facing HTTPS and proxies to LLS over HTTPS on the internal Docker network.
+
+```bash
+cd haproxy-ssl
+docker compose up -d
+```
+
+Access the LLS API and UI through HAProxy:
+
+```text
+https://localhost:6501
+```
+
+The HAProxy configuration:
+
+- terminates HTTPS with the generated certificate
+- proxies to the LLS backend over HTTPS with the same generated certificate
+- forwards `X-Forwarded-*` headers to LLS
+- performs readiness checks against `/health/ready`
+- keeps upgraded WebSocket traffic open for the server-side UI
+
+The certificate is self-signed, so browsers and API clients will require an exception or a trusted replacement certificate.
+
+To stop the sample:
+
+```bash
+docker compose down
+```
+
+## nginx SSL setup
+
+The nginx SSL sample starts one LLS container, one PostgreSQL database, and nginx. A Compose init service generates a self-signed localhost certificate into a Docker volume. nginx terminates browser-facing HTTPS and proxies to LLS over HTTPS on the internal Docker network.
+
+```bash
+cd nginx-ssl
+docker compose up -d
+```
+
+Access the LLS API and UI through nginx:
+
+```text
+https://localhost:6501
+```
+
+The nginx configuration:
+
+- terminates HTTPS with the generated certificate
+- proxies to the LLS backend over HTTPS with the same generated certificate
+- forwards `X-Forwarded-*` headers to LLS
+- supports WebSocket upgrades for the server-side UI
+- keeps long-lived UI connections open while idle
+
+The certificate is self-signed, so browsers and API clients will require an exception or a trusted replacement certificate.
 
 To stop the sample:
 
@@ -111,10 +199,12 @@ The script stores non-secret values in `lls_activation_walkthrough.env` so they 
 For a locally running sample, use:
 
 ```text
-LLS URL: http://localhost:6501
+LLS URL: http://localhost:6501 or https://localhost:6501
 LLS username: admin
 LLS password: admin
 ```
+
+When the LLS URL uses `https://`, the walkthrough accepts the sample's self-signed LLS certificate. Management API and identity provider requests still use normal certificate validation.
 
 ## Notes
 
