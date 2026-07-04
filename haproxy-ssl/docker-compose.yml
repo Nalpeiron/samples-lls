@@ -17,7 +17,7 @@ services:
       - "5433:5432"
 
   zentitle-lls:
-    image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.2
+    image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.3.0
     restart: always
     container_name: zentitle-lls
     user: root
@@ -38,6 +38,8 @@ services:
       ConnectionStrings__Database: "Server=zentitle-lls-db; Database=lls; User Id=lls-admin; Password=password; Maximum Pool Size=128; Minimum Pool Size=32; Timeout=5; Command Timeout=15; Keepalive=30"
       Authentication__Username: "admin"
       Authentication__Password: "admin"
+      LlsLogs__Enabled: true
+      LlsLogs__RetentionDays: 14
       LoggingLevel__MinimumLevel: "Warning"
     volumes:
       - haproxy-certs:/https:ro

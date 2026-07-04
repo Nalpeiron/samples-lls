@@ -1,5 +1,5 @@
 x-lls-service: &lls-service
-  image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.2
+  image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.3.0
   restart: always
   depends_on:
     lls-redis:
@@ -12,6 +12,8 @@ x-lls-service: &lls-service
     Authentication__Username: "admin"
     Authentication__Password: "admin"
     HighAvailability__RedisConnectionString: "lls-redis:6379"
+    LlsLogs__Enabled: true
+    LlsLogs__RetentionDays: 14
 
     LoggingLevel__MinimumLevel: "Warning"
     
@@ -88,8 +90,8 @@ services:
     restart: always
     depends_on:
       - zentitle-lls-1
-      # - zentitle-lls-2
-      # - zentitle-lls-3
+      - zentitle-lls-2
+      - zentitle-lls-3
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:

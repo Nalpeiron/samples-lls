@@ -17,7 +17,7 @@ services:
       - "5433:5432"
 
   zentitle-lls:
-    image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.2.2
+    image: registry.gitlab.com/nalpeiron/zentitle/local-license-server:2.3.0
     restart: always
     container_name: zentitle-lls
     environment:
@@ -26,6 +26,8 @@ services:
       Authentication__Username: "admin"
       Authentication__Password: "admin"
       LoggingLevel__MinimumLevel: "Warning"
+      LlsLogs__Enabled: true
+      LlsLogs__RetentionDays: 14
     ports:
       - "6501:6501"
     depends_on:
