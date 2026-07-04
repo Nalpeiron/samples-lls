@@ -194,7 +194,7 @@ The script prompts for:
 - LLS server name, when activation is required
 - entitlement ID
 
-The script stores non-secret values in `lls_activation_walkthrough.env` so they can be reused on later runs. Secrets and passwords are not stored. The generated `.env` file is ignored by git.
+The script stores reusable values in `lls_activation_walkthrough.env`, including `MANAGEMENT_CLIENT_SECRET` and `LLS_PASSWORD`, so they can be reused on later runs. The generated `.env` file is ignored by git. Activation codes are not stored.
 
 For a locally running sample, use:
 

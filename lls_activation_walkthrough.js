@@ -19,8 +19,10 @@ const ENV_KEYS = {
   managementTokenUrl: "MANAGEMENT_TOKEN_URL",
   tenantId: "TENANT_ID",
   managementClientId: "MANAGEMENT_CLIENT_ID",
+  managementClientSecret: "MANAGEMENT_CLIENT_SECRET",
   llsUrl: "LLS_URL",
   llsUsername: "LLS_USERNAME",
+  llsPassword: "LLS_PASSWORD",
   llsServerName: "LLS_SERVER_NAME",
   entitlementId: "ENTITLEMENT_ID",
 };
@@ -45,7 +47,7 @@ async function main() {
   console.log("This wizard activates your Local License Server and imports your first entitlement.");
   console.log("Have your Zentitle2 Management API credentials, LLS credentials, activation code,");
   console.log("and entitlement ID ready.");
-  console.log(`Previous non-secret values are loaded from ${ENV_FILE_PATH} when present.`);
+  console.log(`Previous settings are loaded from ${ENV_FILE_PATH} when present.`);
   console.log();
 
   const managementApiUrl = trimTrailingSlash(
@@ -70,7 +72,11 @@ async function main() {
   );
   envUpdates[ENV_KEYS.managementClientId] = managementClientId;
 
-  const managementClientSecret = await promptSecretRequired("Management API client secret");
+  const managementClientSecret = await promptStoredSecretRequired(
+    "Management API client secret",
+    ENV_KEYS.managementClientSecret
+  );
+  envUpdates[ENV_KEYS.managementClientSecret] = managementClientSecret;
 
   const llsUrl = trimTrailingSlash(await promptStoredRequired("LLS URL", ENV_KEYS.llsUrl));
   envUpdates[ENV_KEYS.llsUrl] = llsUrl;
@@ -84,10 +90,11 @@ async function main() {
   const llsUsername = await promptStoredRequired("LLS username", ENV_KEYS.llsUsername);
   envUpdates[ENV_KEYS.llsUsername] = llsUsername;
 
-  const llsPassword = await promptSecretRequired("LLS password");
+  const llsPassword = await promptStoredSecretRequired("LLS password", ENV_KEYS.llsPassword);
+  envUpdates[ENV_KEYS.llsPassword] = llsPassword;
 
   writeEnvFile(ENV_FILE_PATH, envUpdates);
-  console.log(`Saved non-secret values to ${ENV_FILE_PATH}.`);
+  console.log(`Saved settings to ${ENV_FILE_PATH}.`);
 
   console.log();
   console.log("Requesting Management API access token...");
@@ -388,6 +395,17 @@ function promptSecretRequired(label) {
   });
 }
 
+function promptStoredSecretRequired(label, key) {
+  return promptSecretWithDefault(label, storedEnv[key]).then((value) => {
+    if (value) {
+      return value;
+    }
+
+    console.log(`${label} is required.`);
+    return promptStoredSecretRequired(label, key);
+  });
+}
+
 function promptWithDefault(label, defaultValue) {
   if (pipedAnswers) {
     process.stdout.write(`${label}${defaultValue ? ` [${defaultValue}]` : ""}: `);
@@ -402,6 +420,27 @@ function promptWithDefault(label, defaultValue) {
     interfaceInstance.question(`${label}${suffix}: `, (answer) => {
       resolve(answer.trim() || defaultValue || "");
     });
+  });
+}
+
+function promptSecretWithDefault(label, defaultValue) {
+  if (pipedAnswers) {
+    process.stdout.write(`${label}${defaultValue ? " [stored]" : ""}: `);
+    console.log();
+    const answer = (pipedAnswers.shift() || "").trim();
+    return Promise.resolve(answer || defaultValue || "");
+  }
+
+  const interfaceInstance = getReadline();
+  const suffix = defaultValue ? " [stored]" : "";
+
+  return new Promise((resolve) => {
+    interfaceInstance.question(`${label}${suffix}: `, (answer) => {
+      muteReadlineOutput = false;
+      console.log();
+      resolve(answer.trim() || defaultValue || "");
+    });
+    muteReadlineOutput = true;
   });
 }
 
@@ -531,7 +570,8 @@ function readEnvFile(path) {
 function writeEnvFile(path, values) {
   const lines = [
     "# Local License Server walkthrough settings",
-    "# Secrets and passwords are intentionally not stored.",
+    "# This file is ignored by git. It may contain a Management API client secret and LLS password.",
+    "# Activation codes are intentionally not stored.",
   ];
 
   for (const key of Object.values(ENV_KEYS)) {
